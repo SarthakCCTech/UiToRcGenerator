@@ -1,0 +1,21 @@
+<Window x:Class="UiToRcGenerator.Views.WatchRegionOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        IsHitTestVisible="False">
+    <Grid>
+        <Border BorderBrush="#107C41" BorderThickness="2" CornerRadius="3" Background="#12107C41">
+            <Border.Effect>
+                <DropShadowEffect Color="#107C41" BlurRadius="6" ShadowDepth="0" Opacity="0.8"/>
+            </Border.Effect>
+        </Border>
+
+        <Border Background="#EE107C41" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2,-20,0,0">
+            <TextBlock Text="👁️ Auto-Watch Target Active" Foreground="#FFFFFF" FontSize="10" FontWeight="Bold" FontFamily="Segoe UI"/>
+        </Border>
+    </Grid>
+</Window>

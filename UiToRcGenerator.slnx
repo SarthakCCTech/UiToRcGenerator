@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="UiToRcGenerator.Tests/UiToRcGenerator.Tests.csproj" />
+  <Project Path="UiToRcGenerator/UiToRcGenerator.csproj" />
+</Solution>

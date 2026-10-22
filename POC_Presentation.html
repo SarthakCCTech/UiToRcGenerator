@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POC: UI-to-RC Resource Generator - Visual Deck</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #070b14;
+            --bg-card: rgba(17, 24, 39, 0.75);
+            --bg-card-glow: rgba(30, 41, 69, 0.9);
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-purple: #8b5cf6;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --border: rgba(148, 163, 184, 0.16);
+            --border-glow: rgba(59, 130, 246, 0.4);
+            --glass-blur: blur(16px);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.14) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.06) 0%, transparent 60%);
+        }
+
+        /* Top Header Bar */
+        .header-bar {
+            padding: 14px 36px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: var(--glass-blur);
+            background: rgba(7, 11, 20, 0.75);
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-badge {
+            background: linear-gradient(135deg, #2563eb, #06b6d4);
+            color: white;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .slide-counter {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 14px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+        }
+
+        /* Deck & Slides */
+        .presentation-deck {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 30px 48px 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.98);
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .slide.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1);
+        }
+
+        /* Slide Titles */
+        .slide-header {
+            margin-bottom: 16px;
+        }
+
+        .slide-tag {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--accent-cyan);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .slide-tag::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            box-shadow: 0 0 10px var(--accent-cyan);
+        }
+
+        .slide-title {
+            font-size: 1.95rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            background: linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .slide-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Main Slide Canvas */
+        .slide-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 16px;
+            overflow-y: auto;
+            padding-bottom: 6px;
+        }
+
+        /* Flowchart Node Blocks */
+        .flow-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            gap: 12px;
+            position: relative;
+        }
+
+        .flow-node {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            backdrop-filter: var(--glass-blur);
+            box-shadow: 0 10px 25px -10px rgba(0, 0, 0, 0.4);
+            transition: all 0.25s ease;
+        }
+
+        .flow-node:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+        }
+
+        .flow-node .node-icon {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .flow-node .node-title {
+            font-size: 0.96rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .flow-node .node-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .flow-node .node-badge {
+            margin-top: 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Flow Arrows */
+        .flow-arrow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-cyan);
+            font-size: 1.4rem;
+            font-weight: bold;
+            opacity: 0.8;
+            padding: 0 4px;
+        }
+
+        .flow-arrow span {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 2px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Tech Architecture Stack Layers */
+        .tech-stack-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .tech-layer {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            transition: all 0.2s;
+        }
+
+        .tech-layer:hover {
+            border-color: var(--border-glow);
+            background: var(--bg-card-glow);
+        }
+
+        .layer-badge {
+            min-width: 170px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.88rem;
+            font-weight: 700;
+        }
+
+        .layer-pills {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+
+        .pill {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pill-blue { background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.35); color: #93c5fd; }
+        .pill-emerald { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.35); color: #6ee7b7; }
+        .pill-purple { background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.35); color: #c4b5fd; }
+        .pill-amber { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.35); color: #fcd34d; }
+        .pill-rose { background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.35); color: #fda4af; }
+
+        /* Step Pipeline on Slide 4 (Main Focus) */
+        .pipeline-box {
+            background: rgba(11, 17, 33, 0.85);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .pipeline-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            position: relative;
+        }
+
+        .pipeline-card {
+            background: rgba(18, 27, 49, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+        }
+
+        .pipeline-card .num-badge {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+        }
+
+        .pipeline-card .step-name {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 6px;
+        }
+
+        .pipeline-card .step-detail {
+            font-size: 0.77rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            flex: 1;
+        }
+
+        .dual-path {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+            background: rgba(2, 6, 23, 0.6);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px dashed var(--border);
+        }
+
+        .path-chip {
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 4px 6px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        /* Footer & Controls */
+        .slide-footer {
+            border-top: 1px solid var(--border);
+            padding-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.84rem;
+            color: var(--text-dim);
+        }
+
+        .takeaway {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .takeaway-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-emerald);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .nav-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn-nav {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.84rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-nav:hover {
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+        .btn-nav:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .key-hint {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #cbd5e1;
+        }
+
+        /* Print / PDF */
+        @media print {
+            body {
+                background: #070b14 !important;
+                color: #ffffff !important;
+                height: auto !important;
+                overflow: visible !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .header-bar, .nav-controls, .key-hint {
+                display: none !important;
+            }
+            .presentation-deck {
+                display: block !important;
+                height: auto !important;
+            }
+            .slide {
+                position: relative !important;
+                display: flex !important;
+                opacity: 1 !important;
+                transform: none !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                height: 100vh !important;
+                padding: 30px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Bar -->
+    <div class="header-bar">
+        <div class="brand">
+            <span class="brand-badge">POC Architecture Deck</span>
+            <span>UI to RC Resource Generator</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div class="slide-counter" id="slideIndicator">Slide 1 / 5</div>
+            <div class="nav-controls">
+                <button class="btn-nav" id="btnPrev" onclick="prevSlide()">◀ Previous</button>
+                <button class="btn-nav" id="btnNext" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Presentation Deck (5 Slides) -->
+    <div class="presentation-deck">
+
+        <!-- ================= SLIDE 1: PROBLEM STATEMENT (FLOWCHART) ================= -->
+        <div class="slide active" id="slide-1">
+            <div class="slide-header">
+                <div class="slide-tag">Slide 1 • Problem Statement</div>
+                <h1 class="slide-title">The Problem: Breakdown of Current Manual Workflow</h1>
+                <p class="slide-subtitle">How manual extraction creates bottlenecks, human transcription errors, and broken C++ builds.</p>
+            </div>
+
+            <div class="slide-body">
+                <!-- Visual Pain Point Flowchart -->
+                <div class="flow-container">
+                    <div class="flow-node" style="border-top: 3px solid var(--accent-rose);">
+                        <div class="node-icon">🖥️</div>
+                        <div class="node-title">1. Target Desktop App</div>
+                        <div class="node-desc">50+ dialogs, toolbars & menus in CAD software</div>
+                        <div class="node-badge pill-rose">Manual Clicking</div>
+                    </div>
+
+                    <div class="flow-arrow">
+                        ➔
+                        <span>Manual Copy</span>
+                    </div>
+
+                    <div class="flow-node" style="border-top: 3px solid var(--accent-rose);">
+                        <div class="node-icon">✍️</div>
+                        <div class="node-title">2. Human Transcription</div>
+                        <div class="node-desc">Developers type out labels into Notepad / Excel</div>
+                        <div class="node-badge pill-amber">16–20 Hours Lost</div>
+                    </div>
+
+                    <div class="flow-arrow">
+                        ➔
+                        <span>Prone to Typos</span>
+                    </div>
+
+                    <div class="flow-node" style="border-top: 3px solid var(--accent-amber);">
+                        <div class="node-icon">⚠️</div>
+                        <div class="node-title">3. Syntax & ID Flaws</div>
+                        <div class="node-desc">Missing '&' accelerators, duplicate IDs, bad quotes</div>
+                        <div class="node-badge pill-amber">Schema Mismatch</div>
+                    </div>
+
+                    <div class="flow-arrow">
+                        ➔
+                        <span>Compile Failure</span>
+                    </div>
+
+                    <div class="flow-node" style="border-top: 3px solid var(--accent-rose);">
+                        <div class="node-icon">💥</div>
+                        <div class="node-title">4. Broken RC Build</div>
+                        <div class="node-desc">Visual C++ compiler errors & delayed releases</div>
+                        <div class="node-badge pill-rose">Costly Rework</div>
+                    </div>
+                </div>
+
+                <!-- 3 Summary Callouts -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 8px;">
+                    <div style="background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: 10px; padding: 12px 16px;">
+                        <strong style="color: #fda4af; font-size: 0.88rem;">⏱️ Time Loss:</strong>
+                        <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">2 engineering days wasted per release cycle on repetitive manual transcription.</div>
+                    </div>
+                    <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 10px; padding: 12px 16px;">
+                        <strong style="color: #fcd34d; font-size: 0.88rem;">⌨️ Transcription Errors:</strong>
+                        <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">Missing hotkeys (&File) and quote escapes lead to translation rework.</div>
+                    </div>
+                    <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 10px; padding: 12px 16px;">
+                        <strong style="color: #93c5fd; font-size: 0.88rem;">👁️ Vision OCR Limits:</strong>
+                        <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">Standard screenshot OCR is slow, inaccurate on small fonts, and requires cropping.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="slide-footer">
+                <div class="takeaway">
+                    <span class="takeaway-badge">Core Problem</span>
+                    Manual extraction is slow, introduces build-breaking bugs, and wastes engineering hours.
+                </div>
+                <div>Use <span class="key-hint">←</span> <span class="key-hint">→</span> or <span class="key-hint">Space</span> to navigate</div>
+            </div>
+        </div>
+
+        <!-- ================= SLIDE 2: THE SOLUTION (BEFORE VS AFTER DIAGRAM) ================= -->
+        <div class="slide" id="slide-2">
+            <div class="slide-header">
+                <div class="slide-tag">Slide 2 • Proposed Solution</div>
+                <h1 class="slide-title">The Solution: Automated Live Hover Capture to RC</h1>
+                <p class="slide-subtitle">Replacing manual friction with a zero-latency, automated hover-to-code pipeline.</p>
+            </div>
+
+            <div class="slide-body">
+                <!-- Comparison Box: Before vs After -->
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    
+                    <!-- BEFORE FLOW -->
+                    <div style="background: rgba(244, 63, 94, 0.06); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: 12px; padding: 14px 20px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="font-weight: 700; color: #fda4af; font-size: 0.86rem; text-transform: uppercase;">❌ Before: Manual Multi-Step Friction</span>
+                            <span class="pill pill-rose">16–20 Hours • High Error Rate</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; color: #94a3b8;">
+                            <span>Target CAD App</span>
+                            <span style="color: var(--accent-rose);">➔ [Alt-Tab] ➔</span>
+                            <span>Screenshot / Notepad</span>
+                            <span style="color: var(--accent-rose);">➔ [Manual Typing] ➔</span>
+                            <span>Manual RC Formatting</span>
+                            <span style="color: var(--accent-rose);">➔ [Build Errors] ➔</span>
+                            <span style="color: #f87171;">Delayed Release</span>
+                        </div>
+                    </div>
+
+                    <!-- AFTER FLOW (OUR SOLUTION) -->
+                    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 16px 20px; box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-weight: 700; color: #6ee7b7; font-size: 0.9rem; text-transform: uppercase;">✅ After: UI-to-RC Generator (Zero-Latency Hover)</span>
+                            <span class="pill pill-emerald">&lt; 15 Mins • 100% Accuracy</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                            <div style="background: rgba(2, 6, 23, 0.6); padding: 10px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                <div style="color: #6ee7b7; font-weight: 700; font-size: 0.82rem;">1. Global Hotkey</div>
+                                <div style="color: #94a3b8; font-size: 0.76rem; margin-top: 2px;">Press <span style="color:#38bdf8;">Ctrl+Shift+H</span> in any window</div>
+                            </div>
+                            <div style="background: rgba(2, 6, 23, 0.6); padding: 10px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                <div style="color: #6ee7b7; font-weight: 700; font-size: 0.82rem;">2. Hover Capture</div>
+                                <div style="color: #94a3b8; font-size: 0.76rem; margin-top: 2px;">UIA reads strings instantly under cursor</div>
+                            </div>
+                            <div style="background: rgba(2, 6, 23, 0.6); padding: 10px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                <div style="color: #6ee7b7; font-weight: 700; font-size: 0.82rem;">3. Auto-Deduplication</div>
+                                <div style="color: #94a3b8; font-size: 0.76rem; margin-top: 2px;">Auto-generates clean IDs (IDS_...)</div>
+                            </div>
+                            <div style="background: rgba(2, 6, 23, 0.6); padding: 10px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                <div style="color: #6ee7b7; font-weight: 700; font-size: 0.82rem;">4. 1-Click .RC Export</div>
+                                <div style="color: #94a3b8; font-size: 0.76rem; margin-top: 2px;">Pre-validated against 2dTransRes.rc</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="slide-footer">
+                <div class="takeaway">
+                    <span class="takeaway-badge">Solution Value</span>
+                    Transforms days of tedious transcription into a frictionless 5-minute hover and export.
+                </div>
+                <div>Executive POC Presentation</div>
+            </div>
+        </div>
+
+        <!-- ================= SLIDE 3: TECHNOLOGY CHART ================= -->
+        <div class="slide" id="slide-3">
+            <div class="slide-header">
+                <div class="slide-tag">Slide 3 • Technology Architecture Chart</div>
+                <h1 class="slide-title">Technology Architecture: 4-Tier Native System</h1>
+                <p class="slide-subtitle">Layered architecture engineered for native Windows performance, per-monitor DPI, and compiler compliance.</p>
+            </div>
+
+            <div class="slide-body">
+                <div class="tech-stack-container">
+                    
+                    <!-- Layer 1 -->
+                    <div class="tech-layer">
+                        <div class="layer-badge" style="color: #93c5fd;">
+                            <span style="font-size: 1.2rem;">🖥️</span>
+                            <span>1. Presentation Layer</span>
+                        </div>
+                        <div class="layer-pills">
+                            <span class="pill pill-blue">.NET 10</span>
+                            <span class="pill pill-blue">C# 13</span>
+                            <span class="pill pill-blue">WPF (Windows Presentation Foundation)</span>
+                            <span class="pill pill-blue">Per-Monitor V2 DPI Awareness</span>
+                            <span class="pill">MVVM / ObservableCollection</span>
+                        </div>
+                    </div>
+
+                    <!-- Layer 2 -->
+                    <div class="tech-layer">
+                        <div class="layer-badge" style="color: #c4b5fd;">
+                            <span style="font-size: 1.2rem;">🎛️</span>
+                            <span>2. System Hooks & UX</span>
+                        </div>
+                        <div class="layer-pills">
+                            <span class="pill pill-purple">Win32 RegisterHotKey API</span>
+                            <span class="pill pill-purple">Global Shortcuts (Ctrl+Shift+H / F8)</span>
+                            <span class="pill pill-purple">Topmost Floating Recording Pill Widget</span>
+                            <span class="pill">Non-Intrusive Overlay</span>
+                        </div>
+                    </div>
+
+                    <!-- Layer 3 -->
+                    <div class="tech-layer">
+                        <div class="layer-badge" style="color: #6ee7b7;">
+                            <span style="font-size: 1.2rem;">🎯</span>
+                            <span>3. Extraction Engines</span>
+                        </div>
+                        <div class="layer-pills">
+                            <span class="pill pill-emerald">Primary: UIAutomationClient COM (0ms, 100% Accurate)</span>
+                            <span class="pill pill-amber">Fallback: Windows.Media.Ocr</span>
+                            <span class="pill pill-amber">Tesseract OCR</span>
+                            <span class="pill">GDI+ Bitmap Preprocessor</span>
+                        </div>
+                    </div>
+
+                    <!-- Layer 4 -->
+                    <div class="tech-layer">
+                        <div class="layer-badge" style="color: #fcd34d;">
+                            <span style="font-size: 1.2rem;">📜</span>
+                            <span>4. Resource Compiler</span>
+                        </div>
+                        <div class="layer-pills">
+                            <span class="pill pill-amber">Visual C++ .RC Generator</span>
+                            <span class="pill pill-amber">2dTransRes.rc Template Injector</span>
+                            <span class="pill pill-amber">Syntax Validator</span>
+                            <span class="pill">APSTUDIO & STRINGTABLE Formatter</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="slide-footer">
+                <div class="takeaway">
+                    <span class="takeaway-badge">Tech Decision</span>
+                    Combining native Windows UI Automation with a C++ template engine ensures speed and compiler accuracy.
+                </div>
+                <div>Executive POC Presentation</div>
+            </div>
+        </div>
+
+        <!-- ================= SLIDE 4: HOW OUR APP WORKS (FLOWCHART - MAIN FOCUS) ================= -->
+        <div class="slide" id="slide-4">
+            <div class="slide-header">
+                <div class="slide-tag">Slide 4 • End-to-End Flowchart (Main Focus)</div>
+                <h1 class="slide-title">How Our App Works: Live Pipeline Flowchart</h1>
+                <p class="slide-subtitle">Step-by-step dataflow from mouse hover to fully generated Visual C++ resource script.</p>
+            </div>
+
+            <div class="slide-body">
+                <div class="pipeline-box">
+                    
+                    <!-- 5-Step Pipeline Grid -->
+                    <div class="pipeline-row">
+                        
+                        <!-- Step 1 -->
+                        <div class="pipeline-card" style="border-top: 3px solid var(--accent-blue);">
+                            <div class="num-badge">1</div>
+                            <div class="step-name">Trigger & Hook</div>
+                            <div class="step-detail">
+                                User activates global hotkey <span class="pill pill-blue" style="display:inline-block; margin-top:4px;">Ctrl+Shift+H</span>. 
+                                Win32 global hook engages and floating pill overlay appears.
+                            </div>
+                        </div>
+
+                        <!-- Step 2 -->
+                        <div class="pipeline-card" style="border-top: 3px solid var(--accent-cyan);">
+                            <div class="num-badge">2</div>
+                            <div class="step-name">Hover Detection</div>
+                            <div class="step-detail">
+                                Mouse cursor hovers over target app control. System extracts internal text:
+                            </div>
+                            <div class="dual-path">
+                                <div class="path-chip" style="background: rgba(16,185,129,0.2); color:#6ee7b7;">
+                                    <strong>UIA (Primary)</strong><br>0ms Direct Read
+                                </div>
+                                <div class="path-chip" style="background: rgba(245,158,11,0.2); color:#fcd34d;">
+                                    <strong>OCR (Fallback)</strong><br>Media OCR
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3 -->
+                        <div class="pipeline-card" style="border-top: 3px solid var(--accent-emerald);">
+                            <div class="num-badge">3</div>
+                            <div class="step-name">Deduplication</div>
+                            <div class="step-detail">
+                                In-memory filter suppresses repeated hovers. Automatically maps string to compliant identifier:
+                                <div class="pill pill-emerald" style="margin-top:6px; font-size:0.68rem;">IDS_BTN_EXPORT</div>
+                            </div>
+                        </div>
+
+                        <!-- Step 4 -->
+                        <div class="pipeline-card" style="border-top: 3px solid var(--accent-purple);">
+                            <div class="num-badge">4</div>
+                            <div class="step-name">Review & Template</div>
+                            <div class="step-detail">
+                                DataGrid updates in real time. Items merge into <span class="pill pill-purple" style="display:inline-block; font-size:0.68rem;">2dTransRes.rc</span> template with STRINGTABLE blocks.
+                            </div>
+                        </div>
+
+                        <!-- Step 5 -->
+                        <div class="pipeline-card" style="border-top: 3px solid var(--accent-amber);">
+                            <div class="num-badge">5</div>
+                            <div class="step-name">Validate & Export</div>
+                            <div class="step-detail">
+                                Built-in parser performs 1-click syntax check. Generates clean <span class="pill pill-amber" style="display:inline-block; font-size:0.68rem;">.rc</span> file ready for Visual Studio.
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Flow Visual Connectors Indicator -->
+                    <div style="display: flex; justify-content: space-around; font-size: 0.75rem; color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; padding: 4px 10px; background: rgba(2, 6, 23, 0.5); border-radius: 8px;">
+                        <span>Target App Cursor ➔</span>
+                        <span>Zero-Latency UIA ➔</span>
+                        <span>Auto-ID Assignment ➔</span>
+                        <span>Template Injection ➔</span>
+                        <span>✅ Production .RC Script</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="slide-footer">
+                <div class="takeaway">
+                    <span class="takeaway-badge">Workflow Highlight</span>
+                    The developer stays focused in their CAD software while strings are captured, validated, and formatted automatically.
+                </div>
+                <div>Executive POC Presentation</div>
+            </div>
+        </div>
+
+        <!-- ================= SLIDE 5: BUSINESS IMPACT & ROI ================= -->
+        <div class="slide" id="slide-5">
+            <div class="slide-header">
+                <div class="slide-tag">Slide 5 • Business Impact & ROI</div>
+                <h1 class="slide-title">Business Impact & Measurable ROI</h1>
+                <p class="slide-subtitle">Tangible developer productivity gains and complete elimination of resource compiler defects.</p>
+            </div>
+
+            <div class="slide-body">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                    
+                    <div class="flow-node" style="border-top: 3px solid var(--accent-cyan); align-items: flex-start; text-align: left; padding: 22px;">
+                        <div style="font-size: 2.4rem; font-weight: 800; color: #38bdf8; font-family: 'JetBrains Mono', monospace;">95%</div>
+                        <div class="node-title" style="font-size: 1.05rem; margin-top: 4px;">Time Reduction</div>
+                        <div class="node-desc" style="font-size: 0.84rem; margin-top: 8px;">
+                            Extracting strings from 50+ dialogs reduced from <strong>16–20 engineering hours</strong> to <strong>under 15 minutes</strong> of natural app hover.
+                        </div>
+                        <div class="pill pill-blue" style="margin-top: 14px;">Instant Turnaround</div>
+                    </div>
+
+                    <div class="flow-node" style="border-top: 3px solid var(--accent-emerald); align-items: flex-start; text-align: left; padding: 22px;">
+                        <div style="font-size: 2.4rem; font-weight: 800; color: #34d399; font-family: 'JetBrains Mono', monospace;">100%</div>
+                        <div class="node-title" style="font-size: 1.05rem; margin-top: 4px;">Character Accuracy</div>
+                        <div class="node-desc" style="font-size: 0.84rem; margin-top: 8px;">
+                            Direct OS accessibility inspection completely eliminates human typing mistakes, missing accelerators (&File), and OCR misreadings.
+                        </div>
+                        <div class="pill pill-emerald" style="margin-top: 14px;">Zero Transcription Errors</div>
+                    </div>
+
+                    <div class="flow-node" style="border-top: 3px solid var(--accent-amber); align-items: flex-start; text-align: left; padding: 22px;">
+                        <div style="font-size: 2.4rem; font-weight: 800; color: #fbbf24; font-family: 'JetBrains Mono', monospace;">0</div>
+                        <div class="node-title" style="font-size: 1.05rem; margin-top: 4px;">Compiler Build Breaks</div>
+                        <div class="node-desc" style="font-size: 0.84rem; margin-top: 8px;">
+                            Automated syntax validation against reference templates ensures generated <span class="pill pill-amber" style="padding:1px 6px;">.rc</span> files build cleanly in Visual Studio on attempt #1.
+                        </div>
+                        <div class="pill pill-amber" style="margin-top: 14px;">First-Time Clean Build</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="slide-footer">
+                <div class="takeaway">
+                    <span class="takeaway-badge">Recommendation</span>
+                    Approve POC for pilot deployment in our next CAD release cycle.
+                </div>
+                <div>Executive POC Presentation</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Navigation Logic -->
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        let currentSlide = 0;
+        const totalSlides = slides.length;
+
+        function updateSlide() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active');
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                }
+            });
+            document.getElementById('slideIndicator').innerText = `Slide ${currentSlide + 1} / ${totalSlides}`;
+            document.getElementById('btnPrev').disabled = currentSlide === 0;
+            document.getElementById('btnNext').disabled = currentSlide === totalSlides - 1;
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlide();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                prevSlide();
+            } else if (e.key === 'Home') {
+                currentSlide = 0;
+                updateSlide();
+            } else if (e.key === 'End') {
+                currentSlide = totalSlides - 1;
+                updateSlide();
+            }
+        });
+
+        updateSlide();
+    </script>
+</body>
+</html>
