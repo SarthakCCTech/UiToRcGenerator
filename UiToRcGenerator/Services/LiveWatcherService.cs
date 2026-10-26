@@ -1,18 +1,15 @@
 using System;
-using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Automation;
-using UiToRcGenerator.Models;
 
 namespace UiToRcGenerator.Services
 {
     /// <summary>
-    /// Event arguments passed to MainWindow when a new UI string is captured.
+    /// Event arguments passed to MainWindow when a new UI string is captured via UIA hover.
     /// Contains the text, control type (e.g. Button), source, and screen position.
     /// </summary>
     public class LiveStringCapturedEventArgs : EventArgs
@@ -20,15 +17,15 @@ namespace UiToRcGenerator.Services
         public string ExtractedText { get; set; } = string.Empty;
         public string RawText { get; set; } = string.Empty;
         public string ControlType { get; set; } = "Control";
-        public string Source { get; set; } = string.Empty; // "Direct UIA Hover" or "OCR Watcher"
+        public string Source { get; set; } = "Direct UIA Hover";
         public Rectangle? Region { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 
     /// <summary>
-    /// The live capture engine. It provides two modes:
-    /// 1. Direct UI Automation (UIA) Hover: Uses Windows UI Automation to instantly read the name of whatever control is under the mouse.
-    /// 2. Region OCR Watcher: Continuously watches a selected screen box and runs OCR whenever pixels change.
+    /// The live UI capture engine.
+    /// Uses Windows UI Automation (UIA) to instantly read the name, control type,
+    /// and properties of whatever control is currently hovered under the mouse cursor.
     /// </summary>
     public class LiveWatcherService : IDisposable
     {
@@ -47,29 +44,11 @@ namespace UiToRcGenerator.Services
 
         #endregion
 
-        // Helper services used for OCR region watching
-        private readonly ScreenCaptureService _captureService;
-        private readonly WindowsMediaOcrEngine _ocrEngine;
-        private readonly ImagePreprocessingService _preprocessService;
-
-        // Cancellation tokens to stop background loops cleanly when requested
-        private CancellationTokenSource? _ocrCancellationSource;
+        // Cancellation token to stop background hover loop cleanly when requested
         private CancellationTokenSource? _uiaCancellationSource;
 
-        // Memory variables to prevent spamming identical strings
-        private ulong _lastFrameHash = 0;
-        private string _lastCapturedOcrText = string.Empty;
+        // Memory variable to prevent spamming identical strings
         private string _lastUiaHoverText = string.Empty;
-
-        /// <summary>
-        /// The screen rectangle being watched by the OCR mode (if active).
-        /// </summary>
-        public Rectangle? WatchRegion { get; set; }
-
-        /// <summary>
-        /// True if the OCR screen-region watcher loop is running.
-        /// </summary>
-        public bool IsOcrWatchActive => _ocrCancellationSource != null && !_ocrCancellationSource.IsCancellationRequested;
 
         /// <summary>
         /// True if the Direct UI Automation mouse-hover watcher loop is running.
@@ -96,11 +75,8 @@ namespace UiToRcGenerator.Services
         /// </summary>
         public event EventHandler<string>? StatusChanged;
 
-        public LiveWatcherService(ScreenCaptureService captureService, WindowsMediaOcrEngine ocrEngine, ImagePreprocessingService preprocessService)
+        public LiveWatcherService()
         {
-            _captureService = captureService;
-            _ocrEngine = ocrEngine;
-            _preprocessService = preprocessService;
         }
 
         #region Direct UI Automation Hover Watcher
@@ -220,6 +196,11 @@ namespace UiToRcGenerator.Services
 
                             if (isValidString)
                             {
+                                if (CleanAccessibilityInsightsPrefix)
+                                {
+                                    capturedName = CleanInsightPrefix(capturedName);
+                                }
+
                                 // Step 5: Check if this is different from what we just captured
                                 if (!string.Equals(capturedName, _lastUiaHoverText, StringComparison.OrdinalIgnoreCase))
                                 {
@@ -265,151 +246,6 @@ namespace UiToRcGenerator.Services
 
         #endregion
 
-        #region Region OCR Auto-Watcher
-
-        /// <summary>
-        /// Starts watching a specific rectangular region of the screen using OCR.
-        /// </summary>
-        public void StartOcrWatcher(Rectangle region)
-        {
-            StopOcrWatcher();
-
-            WatchRegion = region;
-            _ocrCancellationSource = new CancellationTokenSource();
-            _lastFrameHash = 0;
-            _lastCapturedOcrText = string.Empty;
-
-            StatusChanged?.Invoke(this, $"Auto-Watch active on [{region.Width}x{region.Height} at ({region.X},{region.Y})]");
-            Task.Run(() => OcrWatcherLoopAsync(_ocrCancellationSource.Token), _ocrCancellationSource.Token);
-        }
-
-        /// <summary>
-        /// Stops the OCR region watcher loop.
-        /// </summary>
-        public void StopOcrWatcher()
-        {
-            if (_ocrCancellationSource != null)
-            {
-                _ocrCancellationSource.Cancel();
-                _ocrCancellationSource.Dispose();
-                _ocrCancellationSource = null;
-                StatusChanged?.Invoke(this, "Auto-Watch stopped.");
-            }
-        }
-
-        /// <summary>
-        /// Background loop for OCR screen region watching.
-        /// </summary>
-        private async Task OcrWatcherLoopAsync(CancellationToken cancellationToken)
-        {
-            var preprocessingOptions = new PreprocessingOptions
-            {
-                ScaleFactor = 2.0,
-                ContrastEnhance = true
-            };
-
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    if (WatchRegion.HasValue)
-                    {
-                        var watchRectangle = WatchRegion.Value;
-                        using var frameBitmap = _captureService.CaptureRegion(watchRectangle);
-
-                        // Compute a fast 64-bit hash of the pixels to see if the image changed
-                        ulong frameHash = ComputeFastHash(frameBitmap);
-
-                        // Only run heavy OCR if the screen pixels actually changed!
-                        if (frameHash != _lastFrameHash && frameHash != 0)
-                        {
-                            _lastFrameHash = frameHash;
-
-                            // Upscale and contrast-enhance image for maximum OCR accuracy
-                            using var preprocessedBitmap = _preprocessService.Preprocess(frameBitmap, preprocessingOptions);
-                            var ocrResult = await _ocrEngine.RecognizeAsync(preprocessedBitmap, preprocessingOptions.ScaleFactor);
-
-                            if (ocrResult.Items.Count > 0)
-                            {
-                                string combinedText = string.Join(" ", ocrResult.Items.ConvertAll(item => item.Text)).Trim();
-
-                                string cleanedText = combinedText;
-                                if (CleanAccessibilityInsightsPrefix)
-                                {
-                                    cleanedText = CleanInsightPrefix(cleanedText);
-                                }
-
-                                if (!string.IsNullOrWhiteSpace(cleanedText) && cleanedText.Length >= 2)
-                                {
-                                    if (!string.Equals(cleanedText, _lastCapturedOcrText, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        _lastCapturedOcrText = cleanedText;
-
-                                        StringCaptured?.Invoke(this, new LiveStringCapturedEventArgs
-                                        {
-                                            ExtractedText = cleanedText,
-                                            RawText = combinedText,
-                                            Source = "OCR Watcher",
-                                            Region = watchRectangle
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Check every 120 ms
-                    await Task.Delay(120, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception exception)
-                {
-                    StatusChanged?.Invoke(this, $"Watcher error: {exception.Message}");
-                    await Task.Delay(500, cancellationToken);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Computes a fast hash of the bitmap pixels using the FNV-1a algorithm.
-        /// This allows us to instantly detect if the screen changed without comparing every single pixel.
-        /// </summary>
-        private static ulong ComputeFastHash(Bitmap bitmap)
-        {
-            BitmapData data = bitmap.LockBits(
-                new Rectangle(0, 0, bitmap.Width, bitmap.Height), 
-                ImageLockMode.ReadOnly, 
-                PixelFormat.Format32bppArgb
-            );
-
-            ulong hash = 14695981039346656037UL; // FNV offset basis constant
-
-            try
-            {
-                unsafe
-                {
-                    byte* pixelPointer = (byte*)data.Scan0.ToPointer();
-                    int totalByteCount = data.Stride * bitmap.Height;
-
-                    // Sample every 4th byte for maximum performance and speed
-                    for (int i = 0; i < totalByteCount; i += 4)
-                    {
-                        hash ^= pixelPointer[i];
-                        hash *= 1099511628211UL; // FNV prime multiplier
-                    }
-                }
-            }
-            finally
-            {
-                bitmap.UnlockBits(data);
-            }
-
-            return hash;
-        }
-
         /// <summary>
         /// Cleans prefixes often produced by Accessibility Insights or Inspect tool.
         /// For example: 'Name: "Save As..."' is cleaned into 'Save As...'.
@@ -437,14 +273,11 @@ namespace UiToRcGenerator.Services
             return cleaned;
         }
 
-        #endregion
-
         /// <summary>
         /// Clean up and stop background watcher threads when the service is disposed.
         /// </summary>
         public void Dispose()
         {
-            StopOcrWatcher();
             StopUiaHoverWatcher();
         }
     }

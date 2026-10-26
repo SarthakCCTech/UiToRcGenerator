@@ -24,15 +24,10 @@ namespace UiToRcGenerator
         // -------------------------------------------------------------
         // Underlying Services
         // -------------------------------------------------------------
-        private readonly ScreenCaptureService _captureService = new();
-        private readonly WindowsMediaOcrEngine _winMediaOcr = new();
-        private readonly TesseractOcrEngine _tesseractOcr = new();
-        private readonly ImagePreprocessingService _preprocessService = new();
         private readonly RcGeneratorService _rcGenerator = new();
-        private readonly AccuracyEvaluationService _accuracyService = new();
 
         // The background hover watcher and global hotkey manager
-        private readonly LiveWatcherService _liveWatcher;
+        private readonly LiveWatcherService _liveWatcher = new();
         private readonly GlobalHotkeyManager _hotkeyManager = new();
 
         // Floating widget shown at the top of the screen during live capture
@@ -54,9 +49,6 @@ namespace UiToRcGenerator
 
             // Enable high-DPI scaling so coordinates and text remain sharp on 4K / Laptop displays
             DpiHelper.EnablePerMonitorDpi();
-
-            // Initialize the background live capture service
-            _liveWatcher = new LiveWatcherService(_captureService, _winMediaOcr, _preprocessService);
             
             // Subscribe to live events fired by the watcher
             _liveWatcher.StringCaptured += OnLiveStringCaptured;

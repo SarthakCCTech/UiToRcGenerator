@@ -89,7 +89,7 @@ namespace UiToRcGenerator.Models
         }
 
         /// <summary>
-        /// Extraction confidence score as a percentage (100.0 for native UI Automation, or 0-100 for OCR).
+        /// Extraction confidence score as a percentage (100.0 for native UI Automation).
         /// </summary>
         public double Confidence
         {

@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
 namespace UiToRcGenerator.Services
@@ -31,7 +30,7 @@ namespace UiToRcGenerator.Services
         #endregion
 
         /// <summary>
-        /// Tells Windows that our app handles display scaling correctly so screenshots are crisp and pixel-accurate.
+        /// Tells Windows that our app handles display scaling correctly so coordinates are pixel-accurate.
         /// </summary>
         public static void EnablePerMonitorDpi()
         {
@@ -55,60 +54,12 @@ namespace UiToRcGenerator.Services
             int width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
             int height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
-            // If metrics returned 0, fallback to a standard 1080p single screen resolution
             if (width <= 0 || height <= 0)
             {
                 return new Rectangle(0, 0, 1920, 1080);
             }
 
             return new Rectangle(left, top, width, height);
-        }
-    }
-
-    /// <summary>
-    /// Service responsible for capturing screenshots of the desktop or a specific rectangular region.
-    /// Used by the OCR engine to read text from pixels.
-    /// </summary>
-    public class ScreenCaptureService
-    {
-        /// <summary>
-        /// Takes a screenshot of a specific rectangular area on the screen.
-        /// </summary>
-        /// <param name="screenRegion">The screen coordinates and size to photograph.</param>
-        /// <returns>A standard GDI+ Bitmap containing the captured pixels.</returns>
-        public Bitmap CaptureRegion(Rectangle screenRegion)
-        {
-            if (screenRegion.Width <= 0 || screenRegion.Height <= 0)
-            {
-                throw new ArgumentException("Capture region must have positive width and height.");
-            }
-
-            // Create a blank image of the requested size
-            var bitmap = new Bitmap(screenRegion.Width, screenRegion.Height, PixelFormat.Format32bppArgb);
-
-            // Copy pixels directly from the screen into the blank image
-            using (var graphics = Graphics.FromImage(bitmap))
-            {
-                graphics.CopyFromScreen(
-                    screenRegion.Left, 
-                    screenRegion.Top, 
-                    0, 
-                    0, 
-                    screenRegion.Size, 
-                    CopyPixelOperation.SourceCopy
-                );
-            }
-
-            return bitmap;
-        }
-
-        /// <summary>
-        /// Takes a full screenshot covering all connected monitors.
-        /// </summary>
-        public Bitmap CaptureAllScreens()
-        {
-            var bounds = DpiHelper.GetVirtualScreenBounds();
-            return CaptureRegion(bounds);
         }
     }
 }
